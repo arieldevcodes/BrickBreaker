@@ -50,7 +50,9 @@
             ball: '#00d9ff',
             ballGlow: '#00ffff',
             brick: '#ff6b6b',
-            brickHighlight: '#ff8888'
+            brickHighlight: '#ff8888',
+            text: '#ffffff',
+            textHighlight: '#00d9ff'
         }
     };
 
@@ -80,6 +82,9 @@
             resetDelay: 0
         },
         bricks: [],  // 2D array of brick objects
+        score: 0,
+        lives: 3,
+        gameState: 'playing',  // 'playing', 'gameOver', 'levelComplete'
         isRunning: false
     };
 
@@ -99,13 +104,37 @@
         setupCanvas();
         console.log('Canvas size:', GameState.width, 'x', GameState.height);
         
+        // Reset game state
+        GameState.score = 0;
+        GameState.lives = 3;
+        GameState.gameState = 'playing';
+        
         initPaddle();
         initBall();
         initBricks();
         setupEventListeners();
         
+        // Add tap/click listener for game restart
+        GameState.canvas.addEventListener('click', handleGameTap);
+        GameState.canvas.addEventListener('touchstart', handleGameTap);
+        
         GameState.isRunning = true;
         gameLoop();
+    }
+    
+    function handleGameTap(e) {
+        e.preventDefault();
+        
+        if (GameState.gameState === 'gameOver' || GameState.gameState === 'levelComplete') {
+            // Reset game
+            GameState.score = 0;
+            GameState.lives = 3;
+            GameState.gameState = 'playing';
+            
+            initPaddle();
+            initBall();
+            initBricks();
+        }
     }
 
     function setupCanvas() {
@@ -308,6 +337,9 @@
     // ============================================
     function updateBall() {
         const ball = GameState.ball;
+        
+        // Don't update ball if game is over or level complete
+        if (GameState.gameState !== 'playing') return;
 
         // Handle reset delay
         if (!ball.isActive) {
@@ -341,9 +373,19 @@
             ball.vy = -ball.vy;
         }
 
-        // Bottom edge - reset ball
+        // Bottom edge - lose a life
         if (ball.y + ball.radius > GameState.height) {
-            resetBall();
+            GameState.lives -= 1;
+            
+            if (GameState.lives <= 0) {
+                GameState.gameState = 'gameOver';
+                GameState.ball.isActive = false;
+            } else {
+                resetBall();
+                // Reset paddle position
+                GameState.paddle.x = (GameState.width - GameState.paddle.width) / 2;
+                GameState.paddle.targetX = GameState.paddle.x;
+            }
             return;
         }
 
@@ -419,10 +461,28 @@
                     // Mark brick as broken
                     brick.status = 0;
                     
+                    // Add score
+                    GameState.score += 10;
+                    
+                    // Check if all bricks are broken
+                    checkLevelComplete();
+                    
                     return; // Only handle one brick collision per frame
                 }
             }
         }
+    }
+    
+    function checkLevelComplete() {
+        const bricks = GameState.bricks;
+        for (let row = 0; row < bricks.length; row++) {
+            for (let col = 0; col < bricks[row].length; col++) {
+                if (bricks[row][col].status === 1) return; // Found active brick
+            }
+        }
+        // All bricks broken!
+        GameState.gameState = 'levelComplete';
+        GameState.ball.isActive = false;
     }
 
     // ============================================
@@ -516,11 +576,69 @@
         drawPaddle();
         drawBall();
         
+        // Draw score and lives
+        drawUI();
+        
+        // Draw game over / level complete screens
+        drawGameState();
+        
         // Debug: Show canvas dimensions in top-left corner
         const ctx = GameState.ctx;
         ctx.fillStyle = 'white';
         ctx.font = '14px monospace';
         ctx.fillText('Canvas: ' + GameState.width + ' x ' + GameState.height, 10, 20);
+    }
+    
+    function drawUI() {
+        const ctx = GameState.ctx;
+        const scale = GameConfig.scaleFactor;
+        
+        ctx.fillStyle = GameConfig.colors.text;
+        ctx.font = 'bold ' + (18 * scale) + 'px sans-serif';
+        
+        // Draw score on the left
+        ctx.textAlign = 'left';
+        ctx.fillText('Score: ' + GameState.score, 15 * scale, 30 * scale);
+        
+        // Draw lives on the right
+        ctx.textAlign = 'right';
+        ctx.fillText('Lives: ' + GameState.lives, GameState.width - 15 * scale, 30 * scale);
+    }
+    
+    function drawGameState() {
+        const ctx = GameState.ctx;
+        const scale = GameConfig.scaleFactor;
+        
+        if (GameState.gameState === 'gameOver') {
+            // Darken background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, GameState.width, GameState.height);
+            
+            // Draw game over text
+            ctx.fillStyle = GameConfig.colors.text;
+            ctx.textAlign = 'center';
+            ctx.font = 'bold ' + (40 * scale) + 'px sans-serif';
+            ctx.fillText('Game Over', GameState.width / 2, GameState.height / 2 - 20 * scale);
+            
+            ctx.font = (20 * scale) + 'px sans-serif';
+            ctx.fillText('Score: ' + GameState.score, GameState.width / 2, GameState.height / 2 + 20 * scale);
+            ctx.fillText('Tap to Restart', GameState.width / 2, GameState.height / 2 + 60 * scale);
+        } else if (GameState.gameState === 'levelComplete') {
+            // Darken background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, GameState.width, GameState.height);
+            
+            // Draw win text
+            ctx.fillStyle = GameConfig.colors.textHighlight;
+            ctx.textAlign = 'center';
+            ctx.font = 'bold ' + (40 * scale) + 'px sans-serif';
+            ctx.fillText('You Win!', GameState.width / 2, GameState.height / 2 - 20 * scale);
+            
+            ctx.fillStyle = GameConfig.colors.text;
+            ctx.font = (20 * scale) + 'px sans-serif';
+            ctx.fillText('Score: ' + GameState.score, GameState.width / 2, GameState.height / 2 + 20 * scale);
+            ctx.fillText('Tap to Play Again', GameState.width / 2, GameState.height / 2 + 60 * scale);
+        }
     }
 
     // ============================================
