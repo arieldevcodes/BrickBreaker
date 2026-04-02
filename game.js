@@ -31,13 +31,26 @@
             initialAngle: -Math.PI / 2 // Start moving upward
         },
 
+        // Brick settings
+        bricks: {
+            rowCount: 5,
+            columnCount: 8,
+            width: 0,      // Calculated based on canvas width
+            height: 20,
+            padding: 10,
+            offsetTop: 60,
+            offsetLeft: 0  // Calculated to center bricks
+        },
+
         // Colors
         colors: {
             background: '#0f0f23',
             paddle: '#e94560',
             paddleHighlight: '#ff6b6b',
             ball: '#00d9ff',
-            ballGlow: '#00ffff'
+            ballGlow: '#00ffff',
+            brick: '#ff6b6b',
+            brickHighlight: '#ff8888'
         }
     };
 
@@ -66,6 +79,7 @@
             isActive: false,
             resetDelay: 0
         },
+        bricks: [],  // 2D array of brick objects
         isRunning: false
     };
 
@@ -87,6 +101,7 @@
         
         initPaddle();
         initBall();
+        initBricks();
         setupEventListeners();
         
         GameState.isRunning = true;
@@ -147,6 +162,37 @@
             isActive: true,
             resetDelay: 0
         };
+    }
+
+    function initBricks() {
+        const config = GameConfig.bricks;
+        const rows = config.rowCount;
+        const cols = config.columnCount;
+        
+        // Calculate brick width to fit canvas with padding
+        const totalPadding = (cols + 1) * config.padding;
+        const brickWidth = (GameState.width - totalPadding) / cols;
+        config.width = brickWidth;
+        
+        // Calculate offsetLeft to center the bricks
+        config.offsetLeft = config.padding;
+        
+        // Create 2D array of bricks
+        GameState.bricks = [];
+        for (let row = 0; row < rows; row++) {
+            GameState.bricks[row] = [];
+            for (let col = 0; col < cols; col++) {
+                const brickX = config.offsetLeft + col * (brickWidth + config.padding);
+                const brickY = config.offsetTop + row * (config.height + config.padding);
+                GameState.bricks[row][col] = {
+                    x: brickX,
+                    y: brickY,
+                    width: brickWidth,
+                    height: config.height,
+                    status: 1  // 1 = active, 0 = broken
+                };
+            }
+        }
     }
 
     function resetBall() {
@@ -303,6 +349,9 @@
 
         // Paddle collision
         checkPaddleCollision();
+        
+        // Brick collision
+        checkBrickCollision();
     }
 
     function checkPaddleCollision() {
@@ -343,6 +392,35 @@
                 ball.vx = (ball.vx / currentSpeed) * targetSpeed;
                 ball.vy = (ball.vy / currentSpeed) * targetSpeed;
                 ball.speed = targetSpeed;
+            }
+        }
+    }
+
+    function checkBrickCollision() {
+        const ball = GameState.ball;
+        const bricks = GameState.bricks;
+        
+        for (let row = 0; row < bricks.length; row++) {
+            for (let col = 0; col < bricks[row].length; col++) {
+                const brick = bricks[row][col];
+                
+                // Skip broken bricks
+                if (brick.status === 0) continue;
+                
+                // Check collision with brick (simple AABB collision)
+                if (ball.x + ball.radius > brick.x &&
+                    ball.x - ball.radius < brick.x + brick.width &&
+                    ball.y + ball.radius > brick.y &&
+                    ball.y - ball.radius < brick.y + brick.height) {
+                    
+                    // Hit a brick - reverse ball direction
+                    ball.vy = -ball.vy;
+                    
+                    // Mark brick as broken
+                    brick.status = 0;
+                    
+                    return; // Only handle one brick collision per frame
+                }
             }
         }
     }
@@ -406,8 +484,35 @@
         ctx.fill();
     }
 
+    function drawBricks() {
+        const ctx = GameState.ctx;
+        const bricks = GameState.bricks;
+        
+        for (let row = 0; row < bricks.length; row++) {
+            for (let col = 0; col < bricks[row].length; col++) {
+                const brick = bricks[row][col];
+                
+                // Skip broken bricks
+                if (brick.status === 0) continue;
+                
+                // Draw brick body
+                ctx.fillStyle = GameConfig.colors.brick;
+                ctx.beginPath();
+                ctx.roundRect(brick.x, brick.y, brick.width, brick.height, 4);
+                ctx.fill();
+                
+                // Draw highlight
+                ctx.fillStyle = GameConfig.colors.brickHighlight;
+                ctx.beginPath();
+                ctx.roundRect(brick.x + 2, brick.y + 2, brick.width - 4, brick.height / 3, 2);
+                ctx.fill();
+            }
+        }
+    }
+
     function render() {
         clearCanvas();
+        drawBricks();
         drawPaddle();
         drawBall();
         
