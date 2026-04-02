@@ -105,8 +105,7 @@
         balls: [],  // Array of balls (for multi-ball)
         score: 0,
         lives: 3,
-        currentLevelIndex: 0,  // Current level in GameLevels array
-        gameState: 'playing',  // 'playing', 'gameOver', 'levelComplete', 'levelTransition'
+        gameState: 'playing',  // 'playing', 'gameOver', 'levelComplete'
         paddleBaseWidth: 0,  // Store base paddle width
         widePaddleTimerId: null,  // Timer ID for wide paddle power-up
         isRunning: false
@@ -157,10 +156,9 @@
         e.preventDefault();
         
         if (GameState.gameState === 'gameOver' || GameState.gameState === 'levelComplete') {
-            // Comprehensive reset - restart from level 1
+            // Comprehensive reset
             GameState.score = 0;
             GameState.lives = 3;
-            GameState.currentLevelIndex = 0;
             GameState.gameState = 'playing';
             
             // Clear power-ups and timers
@@ -174,9 +172,6 @@
             initPaddle();
             initBalls();
             initBricks();
-        } else if (GameState.gameState === 'levelTransition') {
-            // Load the next level
-            loadNextLevel();
         }
     }
 
@@ -248,9 +243,6 @@
         const rows = config.rowCount;
         const cols = config.columnCount;
         
-        // Get current level data
-        const levelData = GameLevels[GameState.currentLevelIndex];
-        
         // Calculate brick width to fit canvas with padding
         const totalPadding = (cols + 1) * config.padding;
         const brickWidth = (GameState.width - totalPadding) / cols;
@@ -259,21 +251,53 @@
         // Calculate offsetLeft to center the bricks
         config.offsetLeft = config.padding;
         
-        // Create 2D array of bricks from level data
+        // Select a random geometric pattern
+        const patterns = ['checkerboard', 'pyramid', 'chevron', 'diamond', 'ring', 'wave'];
+        const pattern = patterns[Math.floor(Math.random() * patterns.length)];
+        
+        // Create 2D array of bricks with geometric pattern
         GameState.bricks = [];
         for (let row = 0; row < rows; row++) {
             GameState.bricks[row] = [];
             for (let col = 0; col < cols; col++) {
-                const hp = levelData[row][col];
-                
-                // 0 means empty space - don't create a brick
-                if (hp === 0) {
-                    GameState.bricks[row][col] = null;
-                    continue;
-                }
-                
                 const brickX = config.offsetLeft + col * (brickWidth + config.padding);
                 const brickY = config.offsetTop + row * (config.height + config.padding);
+                
+                // Calculate HP based on geometric pattern
+                let hp = 1;
+                
+                if (pattern === 'checkerboard') {
+                    // Checkerboard: alternating high/low HP
+                    hp = ((row + col) % 2 === 0) ? 4 : 1;
+                } else if (pattern === 'pyramid') {
+                    // Pyramid: higher HP in center rows
+                    const centerRow = rows / 2;
+                    const distFromCenter = Math.abs(row - centerRow);
+                    hp = 6 - distFromCenter;
+                } else if (pattern === 'chevron') {
+                    // Chevron: V shapes with high HP
+                    const distFromEdge = Math.min(col, cols - 1 - col);
+                    hp = 6 - distFromEdge;
+                } else if (pattern === 'diamond') {
+                    // Diamond: high HP in center, radiating outward
+                    const centerRow = rows / 2;
+                    const centerCol = cols / 2;
+                    const dist = Math.abs(row - centerRow) + Math.abs(col - centerCol);
+                    hp = Math.max(1, 7 - dist);
+                } else if (pattern === 'ring') {
+                    // Ring: high HP on edges, low in center
+                    const centerRow = rows / 2;
+                    const centerCol = cols / 2;
+                    const dist = Math.abs(row - centerRow) + Math.abs(col - centerCol);
+                    hp = Math.min(6, dist + 1);
+                } else if (pattern === 'wave') {
+                    // Wave: sinusoidal HP pattern
+                    hp = Math.floor(Math.sin(col * 0.8 + row * 0.5) * 3 + 4);
+                    hp = Math.max(1, Math.min(6, hp));
+                }
+                
+                // Clamp HP to valid range
+                hp = Math.max(1, Math.min(6, hp));
                 
                 GameState.bricks[row][col] = {
                     x: brickX,
@@ -768,49 +792,12 @@
         const bricks = GameState.bricks;
         for (let row = 0; row < bricks.length; row++) {
             for (let col = 0; col < bricks[row].length; col++) {
-                // Skip null bricks (empty spaces in level)
-                if (!bricks[row][col]) continue;
                 if (bricks[row][col].status === 1) return; // Found active brick
             }
         }
-        
         // All bricks destroyed!
-        // Check if there are more levels
-        if (GameState.currentLevelIndex < GameLevels.length - 1) {
-            // More levels available - trigger level transition
-            GameState.gameState = 'levelTransition';
-            GameState.ball.isActive = false;
-        } else {
-            // Final level completed - show game over (win)
-            GameState.gameState = 'levelComplete';
-            GameState.ball.isActive = false;
-        }
-    }
-    
-    // Load the next level
-    function loadNextLevel() {
-        GameState.currentLevelIndex++;
-        
-        // Clear power-ups and reset paddle
-        GameState.powerUps = [];
-        if (GameState.widePaddleTimerId) {
-            clearTimeout(GameState.widePaddleTimerId);
-            GameState.widePaddleTimerId = null;
-        }
-        
-        // Reset paddle width
-        GameState.paddle.width = GameState.paddleBaseWidth;
-        
-        // Reinitialize bricks for new level
-        initBalls();
-        initBricks();
-        
-        // Reset paddle position
-        GameState.paddle.x = (GameState.width - GameState.paddle.width) / 2;
-        GameState.paddle.targetX = GameState.paddle.x;
-        
-        // Resume playing
-        GameState.gameState = 'playing';
+        GameState.gameState = 'levelComplete';
+        GameState.ball.isActive = false;
     }
 
     // ============================================
@@ -947,10 +934,6 @@
         ctx.textAlign = 'left';
         ctx.fillText('Score: ' + GameState.score, 15 * scale, 30 * scale);
         
-        // Draw level in the center
-        ctx.textAlign = 'center';
-        ctx.fillText('Level: ' + (GameState.currentLevelIndex + 1), GameState.width / 2, 30 * scale);
-        
         // Draw lives on the right
         ctx.textAlign = 'right';
         ctx.fillText('Lives: ' + GameState.lives, GameState.width - 15 * scale, 30 * scale);
@@ -989,21 +972,6 @@
             ctx.font = (20 * scale) + 'px sans-serif';
             ctx.fillText('Score: ' + GameState.score, GameState.width / 2, GameState.height / 2 + 20 * scale);
             ctx.fillText('Tap to Play Again', GameState.width / 2, GameState.height / 2 + 60 * scale);
-        } else if (GameState.gameState === 'levelTransition') {
-            // Darken background
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(0, 0, GameState.width, GameState.height);
-            
-            // Draw level complete text
-            ctx.fillStyle = GameConfig.colors.textHighlight;
-            ctx.textAlign = 'center';
-            ctx.font = 'bold ' + (40 * scale) + 'px sans-serif';
-            ctx.fillText('Level Complete!', GameState.width / 2, GameState.height / 2 - 20 * scale);
-            
-            ctx.fillStyle = GameConfig.colors.text;
-            ctx.font = (20 * scale) + 'px sans-serif';
-            ctx.fillText('Next: Level ' + (GameState.currentLevelIndex + 2), GameState.width / 2, GameState.height / 2 + 20 * scale);
-            ctx.fillText('Tap for Next Level', GameState.width / 2, GameState.height / 2 + 60 * scale);
         }
     }
 
