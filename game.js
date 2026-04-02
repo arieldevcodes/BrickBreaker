@@ -52,7 +52,12 @@
             brick: '#ff6b6b',
             brickHighlight: '#ff8888',
             text: '#ffffff',
-            textHighlight: '#00d9ff'
+            textHighlight: '#00d9ff',
+            brickHP: {
+                3: '#e94560',  // Red - 3 HP
+                2: '#ffc107',  // Yellow/Orange - 2 HP
+                1: '#4caf50'   // Green - 1 HP
+            }
         }
     };
 
@@ -213,12 +218,17 @@
             for (let col = 0; col < cols; col++) {
                 const brickX = config.offsetLeft + col * (brickWidth + config.padding);
                 const brickY = config.offsetTop + row * (config.height + config.padding);
+                
+                // Random HP between 1 and 3
+                const hp = Math.floor(Math.random() * 3) + 1;
+                
                 GameState.bricks[row][col] = {
                     x: brickX,
                     y: brickY,
                     width: brickWidth,
                     height: config.height,
-                    status: 1  // 1 = active, 0 = broken
+                    status: 1,  // 1 = active, 0 = broken
+                    hp: hp      // Hit points (1-3)
                 };
             }
         }
@@ -458,14 +468,17 @@
                     // Hit a brick - reverse ball direction
                     ball.vy = -ball.vy;
                     
-                    // Mark brick as broken
-                    brick.status = 0;
+                    // Decrease brick HP
+                    brick.hp -= 1;
                     
-                    // Add score
-                    GameState.score += 10;
-                    
-                    // Check if all bricks are broken
-                    checkLevelComplete();
+                    // Check if brick is destroyed
+                    if (brick.hp <= 0) {
+                        brick.status = 0;
+                        // Award points only when brick is fully broken
+                        GameState.score += 10;
+                        // Check if all bricks are broken
+                        checkLevelComplete();
+                    }
                     
                     return; // Only handle one brick collision per frame
                 }
@@ -480,7 +493,7 @@
                 if (bricks[row][col].status === 1) return; // Found active brick
             }
         }
-        // All bricks broken!
+        // All bricks destroyed!
         GameState.gameState = 'levelComplete';
         GameState.ball.isActive = false;
     }
@@ -555,19 +568,33 @@
                 // Skip broken bricks
                 if (brick.status === 0) continue;
                 
+                // Get color based on HP
+                const brickColor = GameConfig.colors.brickHP[brick.hp] || GameConfig.colors.brick;
+                const highlightColor = adjustBrightness(brickColor, 30);
+                
                 // Draw brick body
-                ctx.fillStyle = GameConfig.colors.brick;
+                ctx.fillStyle = brickColor;
                 ctx.beginPath();
                 ctx.roundRect(brick.x, brick.y, brick.width, brick.height, 4);
                 ctx.fill();
                 
                 // Draw highlight
-                ctx.fillStyle = GameConfig.colors.brickHighlight;
+                ctx.fillStyle = highlightColor;
                 ctx.beginPath();
                 ctx.roundRect(brick.x + 2, brick.y + 2, brick.width - 4, brick.height / 3, 2);
                 ctx.fill();
             }
         }
+    }
+    
+    // Helper function to adjust color brightness
+    function adjustBrightness(hex, percent) {
+        const num = parseInt(hex.replace('#', ''), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = Math.min(255, Math.max(0, (num >> 16) + amt));
+        const G = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amt));
+        const B = Math.min(255, Math.max(0, (num & 0x0000FF) + amt));
+        return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
     }
 
     function render() {
