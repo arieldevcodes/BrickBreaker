@@ -83,6 +83,8 @@
         GameState.ctx = canvas.getContext('2d');
 
         setupCanvas();
+        console.log('Canvas size:', GameState.width, 'x', GameState.height);
+        
         initPaddle();
         initBall();
         setupEventListeners();
@@ -93,13 +95,15 @@
 
     function setupCanvas() {
         const container = document.getElementById('game-container');
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
+        const containerWidth = container.clientWidth || 400;
+        const containerHeight = container.clientHeight || 600;
 
         // Calculate scale to fit mobile screen while maintaining aspect ratio
         const scaleX = containerWidth / GameConfig.baseWidth;
         const scaleY = containerHeight / GameConfig.baseHeight;
-        const scale = Math.min(scaleX, scaleY, 1.5); // Max scale of 1.5
+        
+        // Always scale to fill the container
+        const scale = Math.min(scaleX, scaleY, 1.5);
 
         GameConfig.scaleFactor = scale;
 
@@ -109,6 +113,10 @@
 
         GameState.canvas.width = GameState.width;
         GameState.canvas.height = GameState.height;
+        
+        // Set explicit canvas style dimensions to match
+        GameState.canvas.style.width = GameState.width + 'px';
+        GameState.canvas.style.height = GameState.height + 'px';
     }
 
     function initPaddle() {
