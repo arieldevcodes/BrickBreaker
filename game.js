@@ -410,6 +410,12 @@
         clearCanvas();
         drawPaddle();
         drawBall();
+        
+        // Debug: Show canvas dimensions in top-left corner
+        const ctx = GameState.ctx;
+        ctx.fillStyle = 'white';
+        ctx.font = '14px monospace';
+        ctx.fillText('Canvas: ' + GameState.width + ' x ' + GameState.height, 10, 20);
     }
 
     // ============================================
