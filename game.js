@@ -153,13 +153,21 @@
         e.preventDefault();
         
         if (GameState.gameState === 'gameOver' || GameState.gameState === 'levelComplete') {
-            // Reset game
+            // Comprehensive reset
             GameState.score = 0;
             GameState.lives = 3;
             GameState.gameState = 'playing';
             
+            // Clear power-ups and timers
+            GameState.powerUps = [];
+            if (GameState.widePaddleTimerId) {
+                clearTimeout(GameState.widePaddleTimerId);
+                GameState.widePaddleTimerId = null;
+            }
+            
+            // Rebuild paddle, ball, and bricks
             initPaddle();
-            initBall();
+            initBalls();
             initBricks();
         }
     }
@@ -466,6 +474,7 @@
             if (ball.y - ball.radius < 0) { ball.y = ball.radius; ball.vy = -ball.vy; }
             
             if (ball.y + ball.radius > GameState.height) {
+                // Ball hit bottom - remove from array
                 GameState.balls.splice(i, 1);
                 continue;
             }
@@ -479,18 +488,54 @@
             GameState.ball = GameState.balls[0];
         }
         
-        // Check if all balls gone and handle life loss
-        const hasActiveBall = GameState.balls.some(b => b.isActive || b.resetDelay > 0);
-        if (!hasActiveBall && GameState.lives > 0) {
-            GameState.lives--;
-            if (GameState.lives <= 0) {
-                GameState.gameState = 'gameOver';
-            } else {
-                resetBall();
-                GameState.paddle.x = (GameState.width - GameState.paddle.width) / 2;
-                GameState.paddle.targetX = GameState.paddle.x;
-            }
+        // Only lose life when NO balls remain AND they were all active at start of this check
+        // Lives should not decrease - instead we respawn when ball is lost
+        if (GameState.balls.length === 0 && GameState.lives > 0) {
+            // Respawn: clear power-ups/timers, reset paddle, spawn new ball
+            respawnBall();
         }
+        
+        // Game over only when no balls AND no lives left to respawn
+        if (GameState.balls.length === 0 && GameState.lives <= 0) {
+            GameState.gameState = 'gameOver';
+        }
+    }
+    
+    // Respawn a ball after all balls are lost
+    function respawnBall() {
+        // Clear any existing power-up timers
+        if (GameState.widePaddleTimerId) {
+            clearTimeout(GameState.widePaddleTimerId);
+            GameState.widePaddleTimerId = null;
+        }
+        
+        // Clear falling power-ups
+        GameState.powerUps = [];
+        
+        // Reset paddle width to base
+        GameState.paddle.width = GameState.paddleBaseWidth;
+        
+        // Reset paddle position
+        GameState.paddle.x = (GameState.width - GameState.paddle.width) / 2;
+        GameState.paddle.targetX = GameState.paddle.x;
+        
+        // Initialize ball but keep it inactive until it launches
+        const radius = GameConfig.ball.radius * GameConfig.scaleFactor;
+        const speed = GameConfig.ball.speed * GameConfig.scaleFactor;
+        
+        const newBall = {
+            x: GameState.paddle.x + GameState.paddle.width / 2,
+            y: GameState.paddle.y - radius - 2,
+            radius: radius,
+            vx: 0,
+            vy: 0,
+            speed: speed,
+            isActive: false,
+            resetDelay: 30 // Brief delay before launching
+        };
+        
+        GameState.balls = [newBall];
+        GameState.ball = newBall;
     }
 
     function checkPaddleCollision(ball) {
