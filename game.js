@@ -103,7 +103,8 @@
         score: 0,
         lives: 3,
         gameState: 'playing',  // 'playing', 'gameOver', 'levelComplete'
-        paddleWideTimer: 0,  // Timer for wide paddle power-up
+        paddleBaseWidth: 0,  // Store base paddle width
+        widePaddleTimerId: null,  // Timer ID for wide paddle power-up
         isRunning: false
     };
 
@@ -129,7 +130,11 @@
         GameState.gameState = 'playing';
         GameState.powerUps = [];
         GameState.balls = [];
-        GameState.paddleWideTimer = 0;
+        GameState.paddleBaseWidth = 0;
+        if (GameState.widePaddleTimerId) {
+            clearTimeout(GameState.widePaddleTimerId);
+            GameState.widePaddleTimerId = null;
+        }
         
         initPaddle();
         initBalls();
@@ -196,6 +201,9 @@
             y: GameState.height - (GameConfig.paddle.yOffset * GameConfig.scaleFactor),
             targetX: null
         };
+        
+        // Store base width for power-ups
+        GameState.paddleBaseWidth = paddleWidth;
     }
 
     function initBalls() {
@@ -435,15 +443,6 @@
     function updateBalls() {
         if (GameState.gameState !== 'playing') return;
         
-        // Update paddle wide timer
-        if (GameState.paddleWideTimer > 0) {
-            GameState.paddleWideTimer--;
-            if (GameState.paddleWideTimer === 0) {
-                const paddleWidth = GameState.width * GameConfig.paddle.widthRatio;
-                GameState.paddle.width = paddleWidth;
-            }
-        }
-        
         // Process each ball
         for (let i = GameState.balls.length - 1; i >= 0; i--) {
             const ball = GameState.balls[i];
@@ -626,17 +625,26 @@
     
     function activatePowerUp(type) {
         if (type === 'widePaddle') {
-            // Double paddle width for 10 seconds
-            const paddleWidth = GameState.width * GameConfig.paddle.widthRatio * 2;
-            GameState.paddle.width = paddleWidth;
-            // Convert 10 seconds to frames (assuming 60fps)
-            GameState.paddleWideTimer = 600;
+            // Clear any existing timer
+            if (GameState.widePaddleTimerId) {
+                clearTimeout(GameState.widePaddleTimerId);
+            }
+            
+            // Calculate new width: 1.5x base width, max 90% canvas
+            const newWidth = Math.min(GameState.paddleBaseWidth * 1.5, GameState.width * 0.9);
+            GameState.paddle.width = newWidth;
             
             // Keep paddle in bounds
             if (GameState.paddle.x + GameState.paddle.width > GameState.width) {
                 GameState.paddle.x = GameState.width - GameState.paddle.width;
                 GameState.paddle.targetX = GameState.paddle.x;
             }
+            
+            // Set timer to revert after 10 seconds
+            GameState.widePaddleTimerId = setTimeout(function() {
+                GameState.paddle.width = GameState.paddleBaseWidth;
+                GameState.widePaddleTimerId = null;
+            }, 10000);
         } else if (type === 'multiBall') {
             // Spawn two additional balls at paddle location
             const paddle = GameState.paddle;
@@ -662,6 +670,7 @@
     
     function drawPowerUps() {
         const ctx = GameState.ctx;
+        const scale = GameConfig.scaleFactor;
         
         for (let i = 0; i < GameState.powerUps.length; i++) {
             const powerUp = GameState.powerUps[i];
@@ -673,18 +682,20 @@
                 ctx.fillStyle = GameConfig.colors.powerUpMultiBall;
             }
             
-            // Draw power-up shape (rounded rectangle with icon)
+            // Draw power-up as pill shape (rounded rectangle)
+            const pillWidth = powerUp.width;
+            const pillHeight = powerUp.height;
             ctx.beginPath();
-            ctx.roundRect(powerUp.x, powerUp.y, powerUp.width, powerUp.height, 6);
+            ctx.roundRect(powerUp.x, powerUp.y, pillWidth, pillHeight, pillHeight / 2);
             ctx.fill();
             
-            // Draw icon
+            // Draw letter in center
             ctx.fillStyle = 'white';
-            ctx.font = 'bold 14px sans-serif';
+            ctx.font = 'bold ' + (12 * scale) + 'px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            const icon = powerUp.type === 'widePaddle' ? '↔' : '⋆';
-            ctx.fillText(icon, powerUp.x + powerUp.width / 2, powerUp.y + powerUp.height / 2);
+            const letter = powerUp.type === 'widePaddle' ? 'W' : 'M';
+            ctx.fillText(letter, powerUp.x + powerUp.width / 2, powerUp.y + powerUp.height / 2);
         }
     }
     
