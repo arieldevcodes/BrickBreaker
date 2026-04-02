@@ -354,7 +354,7 @@
     function handleResize() {
         setupCanvas();
         initPaddle();
-        initBall();
+        initBalls();
     }
 
     // ============================================
@@ -386,67 +386,6 @@
     // ============================================
     // Ball Logic
     // ============================================
-    function updateBall() {
-        const ball = GameState.ball;
-        
-        // Don't update ball if game is over or level complete
-        if (GameState.gameState !== 'playing') return;
-
-        // Handle reset delay
-        if (!ball.isActive) {
-            if (ball.resetDelay > 0) {
-                ball.resetDelay--;
-                if (ball.resetDelay === 0) {
-                    activateBall();
-                }
-            }
-            return;
-        }
-
-        // Update position
-        ball.x += ball.vx;
-        ball.y += ball.vy;
-
-        // Wall collision (left, right, top)
-        // Left wall
-        if (ball.x - ball.radius < 0) {
-            ball.x = ball.radius;
-            ball.vx = -ball.vx;
-        }
-        // Right wall
-        if (ball.x + ball.radius > GameState.width) {
-            ball.x = GameState.width - ball.radius;
-            ball.vx = -ball.vx;
-        }
-        // Top wall
-        if (ball.y - ball.radius < 0) {
-            ball.y = ball.radius;
-            ball.vy = -ball.vy;
-        }
-
-        // Bottom edge - lose a life
-        if (ball.y + ball.radius > GameState.height) {
-            GameState.lives -= 1;
-            
-            if (GameState.lives <= 0) {
-                GameState.gameState = 'gameOver';
-                GameState.ball.isActive = false;
-            } else {
-                resetBall();
-                // Reset paddle position
-                GameState.paddle.x = (GameState.width - GameState.paddle.width) / 2;
-                GameState.paddle.targetX = GameState.paddle.x;
-            }
-            return;
-        }
-
-        // Paddle collision
-        checkPaddleCollision();
-        
-        // Brick collision
-        checkBrickCollision();
-    }
-    
     // Updated function for multiple balls
     function updateBalls() {
         if (GameState.gameState !== 'playing') return;
@@ -488,11 +427,14 @@
             GameState.ball = GameState.balls[0];
         }
         
-        // Only lose life when NO balls remain AND they were all active at start of this check
-        // Lives should not decrease - instead we respawn when ball is lost
+        // Only lose life when NO balls remain AND lives > 0
         if (GameState.balls.length === 0 && GameState.lives > 0) {
-            // Respawn: clear power-ups/timers, reset paddle, spawn new ball
-            respawnBall();
+            GameState.lives -= 1;
+            if (GameState.lives <= 0) {
+                GameState.gameState = 'gameOver';
+            } else {
+                respawnBall();
+            }
         }
         
         // Game over only when no balls AND no lives left to respawn
