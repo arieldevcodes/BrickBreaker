@@ -63,12 +63,15 @@
             text: '#ffffff',
             textHighlight: '#00d9ff',
             brickHP: {
-                3: '#e94560',  // Red - 3 HP
-                2: '#ffc107',  // Yellow/Orange - 2 HP
-                1: '#4caf50'   // Green - 1 HP
+                6: '#9c27b0',  // Deep Purple - 6 HP (center of formations)
+                5: '#2196f3',  // Blue - 5 HP
+                4: '#00bcd4',  // Cyan - 4 HP
+                3: '#4caf50',  // Green - 3 HP
+                2: '#ffc107',  // Yellow - 2 HP
+                1: '#f44336'   // Red - 1 HP
             },
-            powerUpWidePaddle: '#9c27b0',  // Purple
-            powerUpMultiBall: '#ff5722'     // Deep Orange
+            powerUpWidePaddle: '#e040fb',  // Neon Purple
+            powerUpMultiBall: '#ff6d00'     // Neon Orange
         }
     };
 
@@ -248,7 +251,11 @@
         // Calculate offsetLeft to center the bricks
         config.offsetLeft = config.padding;
         
-        // Create 2D array of bricks
+        // Select a random geometric pattern
+        const patterns = ['checkerboard', 'pyramid', 'chevron', 'diamond', 'ring', 'wave'];
+        const pattern = patterns[Math.floor(Math.random() * patterns.length)];
+        
+        // Create 2D array of bricks with geometric pattern
         GameState.bricks = [];
         for (let row = 0; row < rows; row++) {
             GameState.bricks[row] = [];
@@ -256,8 +263,41 @@
                 const brickX = config.offsetLeft + col * (brickWidth + config.padding);
                 const brickY = config.offsetTop + row * (config.height + config.padding);
                 
-                // Random HP between 1 and 3
-                const hp = Math.floor(Math.random() * 3) + 1;
+                // Calculate HP based on geometric pattern
+                let hp = 1;
+                
+                if (pattern === 'checkerboard') {
+                    // Checkerboard: alternating high/low HP
+                    hp = ((row + col) % 2 === 0) ? 4 : 1;
+                } else if (pattern === 'pyramid') {
+                    // Pyramid: higher HP in center rows
+                    const centerRow = rows / 2;
+                    const distFromCenter = Math.abs(row - centerRow);
+                    hp = 6 - distFromCenter;
+                } else if (pattern === 'chevron') {
+                    // Chevron: V shapes with high HP
+                    const distFromEdge = Math.min(col, cols - 1 - col);
+                    hp = 6 - distFromEdge;
+                } else if (pattern === 'diamond') {
+                    // Diamond: high HP in center, radiating outward
+                    const centerRow = rows / 2;
+                    const centerCol = cols / 2;
+                    const dist = Math.abs(row - centerRow) + Math.abs(col - centerCol);
+                    hp = Math.max(1, 7 - dist);
+                } else if (pattern === 'ring') {
+                    // Ring: high HP on edges, low in center
+                    const centerRow = rows / 2;
+                    const centerCol = cols / 2;
+                    const dist = Math.abs(row - centerRow) + Math.abs(col - centerCol);
+                    hp = Math.min(6, dist + 1);
+                } else if (pattern === 'wave') {
+                    // Wave: sinusoidal HP pattern
+                    hp = Math.floor(Math.sin(col * 0.8 + row * 0.5) * 3 + 4);
+                    hp = Math.max(1, Math.min(6, hp));
+                }
+                
+                // Clamp HP to valid range
+                hp = Math.max(1, Math.min(6, hp));
                 
                 GameState.bricks[row][col] = {
                     x: brickX,
@@ -265,7 +305,7 @@
                     width: brickWidth,
                     height: config.height,
                     status: 1,  // 1 = active, 0 = broken
-                    hp: hp      // Hit points (1-3)
+                    hp: hp      // Hit points (1-6)
                 };
             }
         }
@@ -575,7 +615,8 @@
             width: GameConfig.powerUps.width,
             height: GameConfig.powerUps.height,
             type: type,
-            vy: GameConfig.powerUps.fallSpeed
+            vy: GameConfig.powerUps.fallSpeed,
+            rotation: 0
         };
         
         GameState.powerUps.push(powerUp);
@@ -589,6 +630,9 @@
             
             // Move power-up down
             powerUp.y += powerUp.vy;
+            
+            // Spin the power-up as it falls
+            powerUp.rotation += 0.05;
             
             // Check paddle collision
             const paddle = GameState.paddle;
@@ -662,27 +706,85 @@
         for (let i = 0; i < GameState.powerUps.length; i++) {
             const powerUp = GameState.powerUps[i];
             
-            // Set color based on type
+            // Save context for rotation
+            ctx.save();
+            
+            // Translate to center of power-up for rotation
+            const centerX = powerUp.x + powerUp.width / 2;
+            const centerY = powerUp.y + powerUp.height / 2;
+            ctx.translate(centerX, centerY);
+            ctx.rotate(powerUp.rotation);
+            
+            // Set colors based on type
+            let color, glowColor, gradientColor1, gradientColor2;
             if (powerUp.type === 'widePaddle') {
-                ctx.fillStyle = GameConfig.colors.powerUpWidePaddle;
+                color = '#e040fb';
+                glowColor = '#e040fb';
+                gradientColor1 = '#e040fb';
+                gradientColor2 = '#7c4dff';
             } else {
-                ctx.fillStyle = GameConfig.colors.powerUpMultiBall;
+                color = '#ff6d00';
+                glowColor = '#ff6d00';
+                gradientColor1 = '#ff6d00';
+                gradientColor2 = '#ffab00';
             }
             
-            // Draw power-up as pill shape (rounded rectangle)
-            const pillWidth = powerUp.width;
-            const pillHeight = powerUp.height;
+            // Create glowing effect
+            ctx.shadowColor = glowColor;
+            ctx.shadowBlur = 20;
+            
+            // Create gradient for gem effect
+            const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, powerUp.width / 2);
+            gradient.addColorStop(0, gradientColor1);
+            gradient.addColorStop(0.5, color);
+            gradient.addColorStop(1, gradientColor2);
+            
+            ctx.fillStyle = gradient;
+            
+            // Draw hexagon gem shape
+            const size = powerUp.width / 2;
             ctx.beginPath();
-            ctx.roundRect(powerUp.x, powerUp.y, pillWidth, pillHeight, pillHeight / 2);
+            for (let j = 0; j < 6; j++) {
+                const angle = (Math.PI / 3) * j - Math.PI / 6;
+                const x = Math.cos(angle) * size * 0.9;
+                const y = Math.sin(angle) * size * 0.9;
+                if (j === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.closePath();
             ctx.fill();
             
-            // Draw letter in center
+            // Inner highlight
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.beginPath();
+            for (let j = 0; j < 6; j++) {
+                const angle = (Math.PI / 3) * j - Math.PI / 6;
+                const x = Math.cos(angle) * size * 0.4;
+                const y = Math.sin(angle) * size * 0.4;
+                if (j === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.closePath();
+            ctx.fill();
+            
+            // Draw letter (unrotated relative to gem, but we've already rotated context)
             ctx.fillStyle = 'white';
-            ctx.font = 'bold ' + (12 * scale) + 'px sans-serif';
+            ctx.font = 'bold ' + (14 * scale) + 'px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
+            ctx.shadowColor = glowColor;
+            ctx.shadowBlur = 10;
             const letter = powerUp.type === 'widePaddle' ? 'W' : 'M';
-            ctx.fillText(letter, powerUp.x + powerUp.width / 2, powerUp.y + powerUp.height / 2);
+            ctx.fillText(letter, 0, 0);
+            
+            ctx.restore();
         }
     }
     
