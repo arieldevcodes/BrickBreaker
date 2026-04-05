@@ -1,0 +1,24 @@
+{
+  "name": "brickbreaker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "game.js",
+  "scripts": {
+    "test": "jest",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arieldevcodes/BrickBreaker.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/arieldevcodes/BrickBreaker/issues"
+  },
+  "homepage": "https://github.com/arieldevcodes/BrickBreaker#readme",
+  "devDependencies": {
+    "jest": "^30.3.0"
+  }
+}
